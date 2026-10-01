@@ -1,0 +1,26 @@
+version: 2
+project_name: yamr-runner
+
+builds:
+  - id: yamr-runner
+    main: ./cmd/yamr-runner/main.go
+    binary: yamr-runner
+
+    env:
+      - CGO_ENABLED=0
+
+    goos:
+      - linux
+      - darwin
+      - windows
+
+    goarch:
+      - amd64
+      - arm64
+
+    ldflags:
+      - -s -w
+
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"

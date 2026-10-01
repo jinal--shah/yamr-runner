@@ -1192,17 +1192,16 @@ yamr-runner:
 	// Inheritance + overrides + immediate/final tokens.
 	//
 	wantPlatformEnv := map[string]string{
-		"FROM_DEFAULTS":   "yes",
-		"HOST_OVERRIDE":   "from-yaml",
-		"ENTITY":          "m4m",
-		"SHARED":          "polaris",
-		"PLATFORM":        "polaris",
-		"STACK":           "prod",
-		"ACTION_KIND":     "platform",
+		"FROM_DEFAULTS":    "yes",
+		"HOST_OVERRIDE":    "from-yaml",
+		"ENTITY":           "m4m",
+		"SHARED":           "polaris",
+		"PLATFORM":         "polaris",
+		"STACK":            "prod",
+		"ACTION_KIND":      "platform",
 		"ACTION_DIR_VALUE": platformDir,
 		"THIS_DIR_VALUE":   platformDir,
-		"RELATIVE_VALUE":
-			"/polaris/prod/vpc/platform/",
+		"RELATIVE_VALUE":   "/polaris/prod/vpc/platform/",
 	}
 
 	if !reflect.DeepEqual(
@@ -1676,4 +1675,3 @@ func canonicalTestPath(
 
 	return filepath.Clean(path)
 }
-

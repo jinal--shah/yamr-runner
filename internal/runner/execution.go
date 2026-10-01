@@ -112,7 +112,7 @@ func (e *Execution) RunAction(
 	if err := e.RunPreRun(
 		planned.Action.ActionFile,
 		planned.PreRun,
-	); err != nil { 
+	); err != nil {
 		result.FailedAt = ActionStagePreRun
 		return result, fmt.Errorf(
 			"action %q pre_run failed: %w",
@@ -250,6 +250,42 @@ func (e *Execution) runOnFail(
 		)
 	}
 
+	originalCmd := filepath.Join(
+		debugDir,
+		"original.cmd",
+	)
+	if err := writeDebugCommand(
+		originalCmd,
+		planned.Docker,
+	); err != nil {
+		return e.returnOnFailPreparationFailed(
+			planned.Action.ActionFile,
+			fmt.Errorf(
+				"create original.cmd %q: %w",
+				originalCmd,
+				err,
+			),
+		)
+	}
+
+	onFailCmd := filepath.Join(
+		debugDir,
+		"on_fail.cmd",
+	)
+	if err := writeDebugCommand(
+		onFailCmd,
+		planned.OnFail.Docker,
+	); err != nil {
+		return e.returnOnFailPreparationFailed(
+			planned.Action.ActionFile,
+			fmt.Errorf(
+				"create on_fail.cmd %q: %w",
+				onFailCmd,
+				err,
+			),
+		)
+	}
+
 	stdout, closeStdout, err := openOnFailOutput(
 		onFail.Stdout,
 		inheritedStdout,
@@ -361,4 +397,23 @@ func onFailOutputPath(
 	}
 
 	return destination.Path
+}
+
+func writeDebugCommand(
+	path string,
+	command docker.Command,
+) error {
+	if err := os.WriteFile(
+		path,
+		[]byte(command.ShellCommand()+"\n"),
+		0644,
+	); err != nil {
+		return fmt.Errorf(
+			"write Docker command %q: %w",
+			path,
+			err,
+		)
+	}
+
+	return nil
 }

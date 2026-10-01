@@ -20,6 +20,43 @@ type PlannedAction struct {
 	OnFail *PlannedOnFail
 }
 
+func (p Plan) Images() []string {
+	seen := make(
+		map[string]struct{},
+	)
+
+	var images []string
+
+	add := func(
+		image string,
+	) {
+		if _, exists := seen[image]; exists {
+			return
+		}
+
+		seen[image] = struct{}{}
+
+		images = append(
+			images,
+			image,
+		)
+	}
+
+	for _, plannedAction := range p.Actions {
+		add(
+			plannedAction.Docker.Image,
+		)
+
+		if plannedAction.OnFail != nil {
+			add(
+				plannedAction.OnFail.Docker.Image,
+			)
+		}
+	}
+
+	return images
+}
+
 func BuildPlan(
 	actions []*action.Action,
 ) (Plan, error) {
@@ -123,8 +160,7 @@ func validateMoveToTmpPaths(
 			)
 		}
 
-		for operationIndex, operation :=
-			range planned.PreRun {
+		for operationIndex, operation := range planned.PreRun {
 
 			moveToTmp, ok := operation.(MoveToTmpOperation)
 			if !ok {
@@ -195,8 +231,7 @@ func validateMkdirPaths(
 			)
 		}
 
-		for operationIndex, operation :=
-			range planned.PreRun {
+		for operationIndex, operation := range planned.PreRun {
 
 			mkdir, ok := operation.(MkdirOperation)
 			if !ok {

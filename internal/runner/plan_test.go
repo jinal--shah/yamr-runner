@@ -3,10 +3,12 @@ package runner
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
 	"jinal--shah/yamr-run/internal/action"
+	"jinal--shah/yamr-run/internal/docker"
 )
 
 func TestBuildPlan(t *testing.T) {
@@ -1002,6 +1004,96 @@ yamr-runner:
 		t.Fatalf(
 			"OnFail.Docker.Image = %q",
 			plan.Actions[0].OnFail.Docker.Image,
+		)
+	}
+}
+
+func TestPlanImagesReturnsDistinctImages(
+	t *testing.T,
+) {
+	plan := Plan{
+		Actions: []PlannedAction{
+			{
+				Docker: docker.Command{
+					Image: "example/a:1",
+				},
+			},
+			{
+				Docker: docker.Command{
+					Image: "example/b:2",
+				},
+			},
+			{
+				Docker: docker.Command{
+					Image: "example/a:1",
+				},
+			},
+		},
+	}
+
+	got := plan.Images()
+
+	want := []string{
+		"example/a:1",
+		"example/b:2",
+	}
+
+	if !reflect.DeepEqual(
+		got,
+		want,
+	) {
+		t.Fatalf(
+			"Images() = %#v, want %#v",
+			got,
+			want,
+		)
+	}
+}
+
+func TestPlanImagesIncludesOnFailImages(
+	t *testing.T,
+) {
+	plan := Plan{
+		Actions: []PlannedAction{
+			{
+				Docker: docker.Command{
+					Image: "example/main:1",
+				},
+				OnFail: &PlannedOnFail{
+					Docker: docker.Command{
+						Image: "example/debug:1",
+					},
+				},
+			},
+			{
+				Docker: docker.Command{
+					Image: "example/other:1",
+				},
+				OnFail: &PlannedOnFail{
+					Docker: docker.Command{
+						Image: "example/debug:1",
+					},
+				},
+			},
+		},
+	}
+
+	got := plan.Images()
+
+	want := []string{
+		"example/main:1",
+		"example/debug:1",
+		"example/other:1",
+	}
+
+	if !reflect.DeepEqual(
+		got,
+		want,
+	) {
+		t.Fatalf(
+			"Images() = %#v, want %#v",
+			got,
+			want,
 		)
 	}
 }

@@ -416,8 +416,6 @@ func TestArgs(t *testing.T) {
 	want := []string{
 		"run",
 		"--rm",
-		"--pull",
-		"always",
 		"--user",
 		"501:20",
 		"--entrypoint",
@@ -459,8 +457,6 @@ func TestArgsMinimal(t *testing.T) {
 	want := []string{
 		"run",
 		"--rm",
-		"--pull",
-		"always",
 		"--entrypoint",
 		"yamr",
 		"propero/yamr:candidate",
@@ -487,8 +483,6 @@ func TestArgsEnvironmentIsDeterministic(t *testing.T) {
 	want := []string{
 		"run",
 		"--rm",
-		"--pull",
-		"always",
 		"--entrypoint",
 		"yamr",
 		"--env",

@@ -196,11 +196,11 @@ func Compile(options Options) (*Action, error) {
 	}
 
 	return &Action{
-			ActionFile: candidate.ActionFile,
-			ActionDir:  candidate.ActionDir,
-			Config:     finalConfig,
-			Env:        configuredEnv,
-			Sources:    selectedSources,
+		ActionFile: candidate.ActionFile,
+		ActionDir:  candidate.ActionDir,
+		Config:     finalConfig,
+		Env:        configuredEnv,
+		Sources:    selectedSources,
 	}, nil
 }
 

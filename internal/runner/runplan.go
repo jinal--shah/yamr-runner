@@ -146,6 +146,11 @@ func (e *Execution) RunPlan(
 			defer workers.Done()
 
 			for index := range jobs {
+				// check we haven't been cancelled, or we get a race condition
+				if ctx.Err() != nil {
+					continue
+				}
+
 				planned := plan.Actions[index]
 
 				actionResult, err := e.RunAction(
@@ -167,6 +172,10 @@ func (e *Execution) RunPlan(
 
 dispatch:
 	for index := range plan.Actions {
+		// check for cancellation here to minimise race condition
+		if ctx.Err() != nil {
+			break dispatch
+		}
 		select {
 		case jobs <- index:
 		case <-ctx.Done():

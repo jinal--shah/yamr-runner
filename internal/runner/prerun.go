@@ -1,4 +1,5 @@
 package runner
+
 /*
 To add a new PreRunOperationType, just satisfy the interface.
 
@@ -343,10 +344,10 @@ func requiredPath(
 // This deliberately does not depend on whether the YAML parser tagged
 // the scalar as a string or integer. Consequently all of:
 //
-//   chmod: "0755"
-//   chmod: 0755
-//   chmod: 755
-//   chmod: 0o755
+//	chmod: "0755"
+//	chmod: 0755
+//	chmod: 755
+//	chmod: 0o755
 //
 // mean mode 0755.
 func parseMode(
@@ -745,12 +746,12 @@ func (o MoveToTmpOperation) moveToTmp(
 //
 // For example:
 //
-//   source:   /home/user/repo/.generated
-//   tempRoot: /tmp/yamr-run-...
+//	source:   /home/user/repo/.generated
+//	tempRoot: /tmp/yamr-run-...
 //
 // becomes:
 //
-//   /tmp/yamr-run-.../home/user/repo/.generated
+//	/tmp/yamr-run-.../home/user/repo/.generated
 func temporaryDestination(
 	tempRoot string,
 	source string,

@@ -274,8 +274,8 @@ func TestTextReporterOnFailStarted(
 		runner.OnFailStartedEvent{
 			ActionFile: "/repo/foo/.yamr.yaml",
 			Image:      "propero/yamr-debug:candidate",
-			StdoutPath:  "/repo/foo/.yamr-debug/stdout.log",
-			StderrPath:  "/repo/foo/.yamr-debug/stderr.log",
+			StdoutPath: "/repo/foo/.yamr-debug/stdout.log",
+			StderrPath: "/repo/foo/.yamr-debug/stderr.log",
 		},
 	)
 

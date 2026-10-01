@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"jinal--shah/yamr-run/internal/apprunner"
-	"jinal--shah/yamr-run/internal/runner"
 	"jinal--shah/yamr-run/internal/cli"
+	"jinal--shah/yamr-run/internal/runner"
 )
 
 func TestRunCLIParseFailure(

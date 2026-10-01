@@ -22,8 +22,8 @@ type Context struct {
 	// processed.
 	ThisDir string
 
-	RepoRoot      string
-	RunDir        string
+	RepoRoot       string
+	RunDir         string
 	YamrSourcesDir string
 
 	// ActionDir is populated during Final resolution.
@@ -43,10 +43,10 @@ var tokenPattern = regexp.MustCompile(`\$([A-Za-z_][A-Za-z0-9_.]*)\$`)
 
 var immediateTokens = map[string]func(Context) (string, error){
 	"uid_me": func(Context) (string, error) {
-		return fmt.Sprintf("%d", os.Getuid()), nil
+		return fmt.Sprintf("%d", os.Geteuid()), nil
 	},
 	"gid_me": func(Context) (string, error) {
-		return fmt.Sprintf("%d", os.Getgid()), nil
+		return fmt.Sprintf("%d", os.Getegid()), nil
 	},
 	"repo_root": func(ctx Context) (string, error) {
 		return canonicalTokenPath(ctx.RepoRoot)
@@ -296,11 +296,11 @@ func canonicalPath(path string) (string, error) {
 // canonicalTokenPath returns a canonical absolute path without a leading
 // or trailing slash. This allows the caller's YAML to write:
 //
-//   /$this_dir$/foo
+//	/$this_dir$/foo
 //
 // rather than:
 //
-//   $this_dir$/foo
+//	$this_dir$/foo
 //
 // which would produce a double slash.
 func canonicalTokenPath(path string) (string, error) {

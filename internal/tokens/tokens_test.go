@@ -69,7 +69,7 @@ values:
 	assertScalar(t, values, "this", helperCanonicalPath(t, thisDir))
 	assertScalar(t, values, "relative", "foo")
 	assertScalar(t, values, "run_no_slashes", slashless(helperCanonicalPath(t, runDir)))
-	assertScalar(t, values, "run_all_slashes", helperCanonicalPath(t, runDir) + "/")
+	assertScalar(t, values, "run_all_slashes", helperCanonicalPath(t, runDir)+"/")
 	assertScalar(t, values, "sources", helperCanonicalPath(t, filepath.Join(root, "sources")))
 }
 

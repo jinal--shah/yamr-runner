@@ -2,23 +2,11 @@ package docker
 
 import (
 	"fmt"
-	"sort"
 
 	"jinal--shah/yamr-run/internal/action"
 
 	"gopkg.in/yaml.v3"
 )
-
-type Command struct {
-	Image      string
-	Entrypoint string
-	CmdOpts    []string
-	CmdSources []string
-	UserGroup  string
-	WorkDir    string
-	Mounts     []string
-	Env        map[string]string
-}
 
 // Compile extracts and validates the Docker configuration from a fully
 // compiled action.
@@ -132,70 +120,6 @@ func Compile(a *action.Action) (Command, error) {
 		Mounts:     mounts,
 		Env:        cloneStringMap(a.Env),
 	}, nil
-}
-
-// Args returns the arguments to pass to the docker executable.
-//
-// The returned slice does not contain "docker" itself.
-func (c Command) Args() []string {
-	args := []string{
-		"run",
-		"--rm",
-		"--pull",
-		"always",
-	}
-
-	if c.UserGroup != "" {
-		args = append(
-			args,
-			"--user",
-			c.UserGroup,
-		)
-	}
-
-	args = append(
-		args,
-		"--entrypoint",
-		c.Entrypoint,
-	)
-
-	if c.WorkDir != "" {
-		args = append(
-			args,
-			"--workdir",
-			c.WorkDir,
-		)
-	}
-
-	// Map iteration order is deliberately undefined in Go.
-	// Sorting gives us deterministic command lines and tests.
-	envKeys := make([]string, 0, len(c.Env))
-	for key := range c.Env {
-		envKeys = append(envKeys, key)
-	}
-	sort.Strings(envKeys)
-
-	for _, key := range envKeys {
-		args = append(
-			args,
-			"--env",
-			key+"="+c.Env[key],
-		)
-	}
-
-	for _, mount := range c.Mounts {
-		args = append(
-			args,
-			"--volume",
-			mount,
-		)
-	}
-
-	args = append(args, c.Image)
-	args = append(args, c.CmdOpts...)
-	args = append(args, c.CmdSources...)
-
-	return args
 }
 
 func dockerConfig(

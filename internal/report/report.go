@@ -26,6 +26,12 @@ type Reporter interface {
 
 	NoActions()
 
+	PullingDockerImages(
+		images []string,
+	)
+
+	DockerImagesReady()
+
 	Summary(
 		result runner.PlanResult,
 		err error,
@@ -88,6 +94,33 @@ func (r *TextReporter) IgnoredActionFiles(
 func (r *TextReporter) NoActions() {
 	r.writef(
 		"No triggered actions found.\n",
+	)
+}
+
+func (r *TextReporter) PullingDockerImages(
+	images []string,
+) {
+	num_label := "images"
+	if len(images) == 1 {
+		num_label = "image"
+	}
+	r.writef(
+		"Pulling %d Docker %s...\n",
+		len(images),
+		num_label,
+	)
+
+	for _, image := range images {
+		r.writef(
+			"  %s\n",
+			image,
+		)
+	}
+}
+
+func (r *TextReporter) DockerImagesReady() {
+	r.writef(
+		"Docker images ready.\n",
 	)
 }
 

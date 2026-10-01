@@ -3,12 +3,15 @@ package apprunner
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 
 	"jinal--shah/yamr-run/internal/app"
 	"jinal--shah/yamr-run/internal/cli"
+	"jinal--shah/yamr-run/internal/docker"
 	"jinal--shah/yamr-run/internal/report"
 	"jinal--shah/yamr-run/internal/runner"
 )
@@ -37,6 +40,21 @@ type buildFunc func(
 	app.BuildOptions,
 ) (app.BuildResult, error)
 
+// prepareFunc allows testing of app orchestration
+// without requiring Docker to be available.
+type prepareFunc func(
+	context.Context,
+	runner.Plan,
+	int,
+) error
+
+// pullImageFunc allows testing of app orchestration
+// without requiring Docker to be available.
+type pullImageFunc func(
+	context.Context,
+	string,
+) error
+
 // executeFunc allows testing of app orchestration
 // without executing real docker
 type executeFunc func(
@@ -52,6 +70,7 @@ type executeFunc func(
 // need external deps like docker and git to actually run
 type applicationRunner struct {
 	build   buildFunc
+	prepare prepareFunc
 	execute executeFunc
 }
 
@@ -72,7 +91,8 @@ func Run(
 	execution := runner.NewExecution(reporter)
 
 	r := applicationRunner{
-		build: app.Build,
+		build:   app.Build,
+		prepare: prepare,
 		execute: execution.RunPlan,
 	}
 
@@ -177,6 +197,32 @@ func (r applicationRunner) run(
 		}
 	}
 
+	images := build.Plan.Images()
+
+	if len(images) > 0 {
+		reporter.PullingDockerImages(
+			images,
+		)
+	}
+
+	if len(images) > 0 {
+		reporter.DockerImagesReady()
+	}
+
+	err = r.prepare(
+		ctx,
+		build.Plan,
+		options.CLI.MaxWorkers,
+	)
+	if err != nil {
+		return Result{
+				Build: build,
+			}, fmt.Errorf(
+				"prepare execution: %w",
+				err,
+			)
+	}
+
 	planResult, err := r.execute(
 		ctx,
 		build.Plan,
@@ -196,7 +242,7 @@ func (r applicationRunner) run(
 		err,
 	)
 	if err != nil {
-		return result , fmt.Errorf(
+		return result, fmt.Errorf(
 			"execute plan: %w",
 			err,
 		)
@@ -245,4 +291,146 @@ func confirmContinue(
 	default:
 		return false, nil
 	}
+}
+
+// checking docker exists, pulling images
+func prepare(
+	ctx context.Context,
+	plan runner.Plan,
+	maxWorkers int,
+) error {
+	return prepareExecution(
+		ctx,
+		plan,
+		maxWorkers,
+		docker.Check,
+		docker.Pull,
+	)
+}
+
+func prepareExecution(
+	ctx context.Context,
+	plan runner.Plan,
+	maxWorkers int,
+	checkDocker func(context.Context) error,
+	pullImage pullImageFunc,
+) error {
+	if ctx == nil {
+		return fmt.Errorf(
+			"context must not be nil",
+		)
+	}
+
+	if maxWorkers <= 0 {
+		return fmt.Errorf(
+			"max workers must be greater than zero",
+		)
+	}
+
+	if err := checkDocker(
+		ctx,
+	); err != nil {
+		return err
+	}
+
+	images := plan.Images()
+
+	if len(images) == 0 {
+		return nil
+	}
+
+	workerCount := min(
+		maxWorkers,
+		len(images),
+	)
+
+	type pullResult struct {
+		image string
+		err   error
+	}
+
+	jobs := make(
+		chan string,
+	)
+
+	results := make(
+		chan pullResult,
+		len(images),
+	)
+
+	var workers sync.WaitGroup
+
+	for range workerCount {
+		workers.Add(1)
+
+		go func() {
+			defer workers.Done()
+
+			for image := range jobs {
+				err := pullImage(
+					ctx,
+					image,
+				)
+
+				results <- pullResult{
+					image: image,
+					err:   err,
+				}
+			}
+		}()
+	}
+
+	go func() {
+		defer close(
+			jobs,
+		)
+
+		for _, image := range images {
+			select {
+			case jobs <- image:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	go func() {
+		workers.Wait()
+
+		close(
+			results,
+		)
+	}()
+
+	var pullErrors []error
+
+	for result := range results {
+		if result.err == nil {
+			continue
+		}
+
+		pullErrors = append(
+			pullErrors,
+			fmt.Errorf(
+				"%s: %w",
+				result.image,
+				result.err,
+			),
+		)
+	}
+
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return ctxErr
+	}
+
+	if len(pullErrors) > 0 {
+		return fmt.Errorf(
+			"pull Docker images: %w",
+			errors.Join(
+				pullErrors...,
+			),
+		)
+	}
+
+	return nil
 }

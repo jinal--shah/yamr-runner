@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-  	"gopkg.in/yaml.v3"
+	"gopkg.in/yaml.v3"
 
 	"jinal--shah/yamr-run/internal/config"
 )
@@ -784,8 +784,8 @@ yamr-runner:
 	)
 
 	wantEnv := map[string]string{
-		"SOURCES_DIR": wantSourcesDir,
-		"THIS_DIR":    wantActionDir,
+		"SOURCES_DIR":  wantSourcesDir,
+		"THIS_DIR":     wantActionDir,
 		"RELATIVE_DIR": "/some/action/",
 	}
 
@@ -913,8 +913,7 @@ yamr-runner:
 		sourcesDir,
 	)
 
-	if got := decoded.YamrRunner.Env["SOURCES_DIR"];
-		got != want {
+	if got := decoded.YamrRunner.Env["SOURCES_DIR"]; got != want {
 		t.Fatalf(
 			"SOURCES_DIR = %q, want %q",
 			got,

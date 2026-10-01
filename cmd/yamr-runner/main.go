@@ -32,6 +32,44 @@ type cliParserFunc func(
 
 type getWdFunc func() (string, error)
 
+func handleHelp(args []string) (bool, error) {
+	hadHelp := false
+	help, err := cli.ParseHelp(
+		args,
+	)
+	if err != nil {
+		fmt.Fprintln(
+			os.Stderr,
+			err,
+		)
+
+		return hadHelp, err
+	}
+
+	if help.Requested {
+		hadHelp = true
+		output, err := cli.Help(
+			help.Topic,
+		)
+		if err != nil {
+			fmt.Fprintln(
+				os.Stderr,
+				err,
+			)
+		} else {
+
+			fmt.Fprint(
+				os.Stdout,
+				output,
+			)
+		}
+		return hadHelp, err
+	}
+
+	return hadHelp, nil
+
+}
+
 func run(
 	ctx context.Context,
 	args []string,
@@ -43,6 +81,19 @@ func run(
 	runDirFunc getWdFunc,
 	runApp appRunnerFunc,
 ) int {
+
+	hadHelp, err := handleHelp(
+		args,
+	)
+
+	if err != nil {
+		return exitFailure
+	}
+
+	if hadHelp {
+		return exitSuccess
+	}
+
 	options, err := parseCLI(
 		args,
 		environ,
@@ -76,7 +127,7 @@ func run(
 		)
 
 		return exitFailure
-	}	
+	}
 
 	result, err := runApp(
 		ctx,

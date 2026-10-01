@@ -738,6 +738,54 @@ exit 99
 		)
 	}
 
+	originalCommand, err := os.ReadFile(
+		filepath.Join(
+			root,
+			".yamr-debug",
+			"original.cmd",
+		),
+	)
+	if err != nil {
+		t.Fatalf(
+			"read original.cmd: %v",
+			err,
+		)
+	}
+
+	onFailCommand, err := os.ReadFile(
+		filepath.Join(
+			root,
+			".yamr-debug",
+			"on_fail.cmd",
+		),
+	)
+	if err != nil {
+		t.Fatalf(
+			"read on_fail.cmd: %v",
+			err,
+		)
+	}
+
+	wantOriginal := planned.Docker.ShellCommand() + "\n"
+
+	if string(originalCommand) != wantOriginal {
+		t.Fatalf(
+			"original.cmd = %q, want %q",
+			string(originalCommand),
+			wantOriginal,
+		)
+	}
+
+	wantOnFail := planned.OnFail.Docker.ShellCommand() + "\n"
+
+	if string(onFailCommand) != wantOnFail {
+		t.Fatalf(
+			"on_fail.cmd = %q, want %q",
+			string(onFailCommand),
+			wantOnFail,
+		)
+	}
+
 	stdoutContent, err := os.ReadFile(
 		filepath.Join(
 			root,

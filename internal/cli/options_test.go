@@ -853,7 +853,7 @@ no-prompts: true
 
 	if got.NoPrompts {
 		t.Fatal(
-			"NoPrompts = true, want false; "+
+			"NoPrompts = true, want false; " +
 				"no-prompts must only be enabled by CLI",
 		)
 	}
@@ -1106,5 +1106,3 @@ func writeRunnerConfig(
 
 	return path
 }
-
-

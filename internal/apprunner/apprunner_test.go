@@ -6,11 +6,13 @@ import (
 	"errors"
 	"io"
 	"strings"
+	"sync"
 	"testing"
 
 	"jinal--shah/yamr-run/internal/app"
 	"jinal--shah/yamr-run/internal/cli"
 	"jinal--shah/yamr-run/internal/discover"
+	"jinal--shah/yamr-run/internal/docker"
 	"jinal--shah/yamr-run/internal/git"
 	"jinal--shah/yamr-run/internal/report"
 	"jinal--shah/yamr-run/internal/runner"
@@ -84,7 +86,7 @@ func TestRunCleanWithoutIgnoredActionsExecutesWithoutPrompt(
 	}
 
 	wantStderr := "Completed: 1 action, 1 succeeded, 0 failed.\n"
-	if harness.stderr.String() != wantStderr {
+	if !strings.Contains(harness.stderr.String(), wantStderr) {
 		t.Fatalf(
 			"stderr = %q, want %q",
 			harness.stderr.String(),
@@ -227,6 +229,14 @@ func TestRunDirtyRepositoryPrompts(
 	if !result.Declined {
 		t.Error(
 			"Declined = false, want true",
+		)
+	}
+
+	// adding this here, rather than an entire test for checking prepare calls
+	if harness.prepareCalls != 0 {
+		t.Fatalf(
+			"prepare calls = %d, want 0",
+			harness.prepareCalls,
 		)
 	}
 
@@ -815,6 +825,566 @@ func TestRunPassesBuildOptionsToBuilder(
 	}
 }
 
+func TestRunPassesPlanAndMaxWorkersToPrepare(
+	t *testing.T,
+) {
+	harness := newRunHarness()
+
+	plan := runner.Plan{
+		Actions: []runner.PlannedAction{
+			{},
+			{},
+		},
+	}
+
+	harness.buildResult = app.BuildResult{
+		Plan: plan,
+	}
+
+	options := harness.options(
+		"",
+	)
+	options.CLI.MaxWorkers = 7
+
+	_, err := harness.runner.run(
+		context.Background(),
+		options,
+		harness.reporter,
+	)
+	if err != nil {
+		t.Fatalf(
+			"run() error = %v",
+			err,
+		)
+	}
+
+	if harness.prepareCalls != 1 {
+		t.Fatalf(
+			"prepare calls = %d, want 1",
+			harness.prepareCalls,
+		)
+	}
+
+	if len(harness.gotPreparePlan.Actions) != 2 {
+		t.Fatalf(
+			"prepare plan actions = %d, want 2",
+			len(harness.gotPreparePlan.Actions),
+		)
+	}
+
+	if harness.gotPrepareMaxWorkers != 7 {
+		t.Fatalf(
+			"prepare max workers = %d, want 7",
+			harness.gotPrepareMaxWorkers,
+		)
+	}
+}
+
+func TestRunPrepareErrorDoesNotExecute(
+	t *testing.T,
+) {
+	harness := newRunHarness()
+
+	prepareErr := errors.New(
+		"docker unavailable",
+	)
+
+	harness.prepareErr = prepareErr
+
+	harness.buildResult = app.BuildResult{
+		Plan: runner.Plan{
+			Actions: []runner.PlannedAction{
+				{},
+			},
+		},
+	}
+
+	result, err := harness.run(
+		t,
+		"",
+		false,
+	)
+
+	if err == nil {
+		t.Fatal(
+			"run() error = nil, want error",
+		)
+	}
+
+	if !errors.Is(
+		err,
+		prepareErr,
+	) {
+		t.Fatalf(
+			"run() error = %v, want wrapped prepare error",
+			err,
+		)
+	}
+
+	if !strings.Contains(
+		err.Error(),
+		"prepare execution",
+	) {
+		t.Fatalf(
+			"run() error = %q, want prepare execution error",
+			err,
+		)
+	}
+
+	if harness.prepareCalls != 1 {
+		t.Fatalf(
+			"prepare calls = %d, want 1",
+			harness.prepareCalls,
+		)
+	}
+
+	if harness.executeCalls != 0 {
+		t.Fatalf(
+			"execute calls = %d, want 0",
+			harness.executeCalls,
+		)
+	}
+
+	if strings.Contains(
+		harness.stderr.String(),
+		"Completed:",
+	) {
+		t.Fatalf(
+			"stderr = %q, want no execution summary",
+			harness.stderr.String(),
+		)
+	}
+
+	if result.Executed {
+		t.Error(
+			"Executed = true, want false",
+		)
+	}
+}
+
+func TestPrepareExecutionPullsPlanImages(
+	t *testing.T,
+) {
+	plan := runner.Plan{
+		Actions: []runner.PlannedAction{
+			{
+				Docker: docker.Command{
+					Image: "example/a:1",
+				},
+			},
+			{
+				Docker: docker.Command{
+					Image: "example/b:2",
+				},
+			},
+			{
+				Docker: docker.Command{
+					Image: "example/a:1",
+				},
+			},
+		},
+	}
+
+	checkCalls := 0
+
+	checkDocker := func(
+		ctx context.Context,
+	) error {
+		checkCalls++
+
+		return nil
+	}
+
+	var mutex sync.Mutex
+	pulled := make(
+		map[string]int,
+	)
+
+	pullImage := func(
+		ctx context.Context,
+		image string,
+	) error {
+		mutex.Lock()
+		defer mutex.Unlock()
+
+		pulled[image]++
+
+		return nil
+	}
+
+	err := prepareExecution(
+		context.Background(),
+		plan,
+		2,
+		checkDocker,
+		pullImage,
+	)
+	if err != nil {
+		t.Fatalf(
+			"prepareExecution() error = %v, want nil",
+			err,
+		)
+	}
+
+	if checkCalls != 1 {
+		t.Fatalf(
+			"check Docker calls = %d, want 1",
+			checkCalls,
+		)
+	}
+
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	if len(pulled) != 2 {
+		t.Fatalf(
+			"pulled images = %#v, want 2 distinct images",
+			pulled,
+		)
+	}
+
+	for _, image := range []string{
+		"example/a:1",
+		"example/b:2",
+	} {
+		if pulled[image] != 1 {
+			t.Errorf(
+				"pull count for %q = %d, want 1",
+				image,
+				pulled[image],
+			)
+		}
+	}
+}
+
+func TestPrepareExecutionDockerCheckFailureDoesNotPull(
+	t *testing.T,
+) {
+	checkErr := errors.New(
+		"Docker unavailable",
+	)
+
+	checkDocker := func(
+		ctx context.Context,
+	) error {
+		return checkErr
+	}
+
+	pullCalls := 0
+
+	pullImage := func(
+		ctx context.Context,
+		image string,
+	) error {
+		pullCalls++
+
+		return nil
+	}
+
+	plan := runner.Plan{
+		Actions: []runner.PlannedAction{
+			{
+				Docker: docker.Command{
+					Image: "example/a:1",
+				},
+			},
+		},
+	}
+
+	err := prepareExecution(
+		context.Background(),
+		plan,
+		2,
+		checkDocker,
+		pullImage,
+	)
+
+	if !errors.Is(
+		err,
+		checkErr,
+	) {
+		t.Fatalf(
+			"prepareExecution() error = %v, want Docker check error",
+			err,
+		)
+	}
+
+	if pullCalls != 0 {
+		t.Fatalf(
+			"pull calls = %d, want 0",
+			pullCalls,
+		)
+	}
+}
+
+func TestPrepareExecutionPullFailure(
+	t *testing.T,
+) {
+	pullErr := errors.New(
+		"manifest unknown",
+	)
+
+	checkDocker := func(
+		ctx context.Context,
+	) error {
+		return nil
+	}
+
+	pullImage := func(
+		ctx context.Context,
+		image string,
+	) error {
+		if image == "example/b:2" {
+			return pullErr
+		}
+
+		return nil
+	}
+
+	plan := runner.Plan{
+		Actions: []runner.PlannedAction{
+			{
+				Docker: docker.Command{
+					Image: "example/a:1",
+				},
+			},
+			{
+				Docker: docker.Command{
+					Image: "example/b:2",
+				},
+			},
+		},
+	}
+
+	err := prepareExecution(
+		context.Background(),
+		plan,
+		2,
+		checkDocker,
+		pullImage,
+	)
+	if err == nil {
+		t.Fatal(
+			"prepareExecution() error = nil, want error",
+		)
+	}
+
+	if !errors.Is(
+		err,
+		pullErr,
+	) {
+		t.Fatalf(
+			"prepareExecution() error = %v, want wrapped pull error",
+			err,
+		)
+	}
+
+	if !strings.Contains(
+		err.Error(),
+		"example/b:2",
+	) {
+		t.Fatalf(
+			"prepareExecution() error = %q, want failing image",
+			err,
+		)
+	}
+}
+
+func TestPrepareExecutionRespectsMaxWorkers(
+	t *testing.T,
+) {
+	plan := runner.Plan{
+		Actions: []runner.PlannedAction{
+			{
+				Docker: docker.Command{
+					Image: "example/a:1",
+				},
+			},
+			{
+				Docker: docker.Command{
+					Image: "example/b:1",
+				},
+			},
+			{
+				Docker: docker.Command{
+					Image: "example/c:1",
+				},
+			},
+			{
+				Docker: docker.Command{
+					Image: "example/d:1",
+				},
+			},
+		},
+	}
+
+	checkDocker := func(
+		ctx context.Context,
+	) error {
+		return nil
+	}
+
+	const maxWorkers = 2
+
+	started := make(
+		chan string,
+		len(plan.Actions),
+	)
+	release := make(chan struct{})
+
+	pullImage := func(
+		ctx context.Context,
+		image string,
+	) error {
+		started <- image
+
+		<-release
+
+		return nil
+	}
+
+	type prepareResult struct {
+		err error
+	}
+
+	done := make(
+		chan prepareResult,
+		1,
+	)
+
+	go func() {
+		done <- prepareResult{
+			err: prepareExecution(
+				context.Background(),
+				plan,
+				maxWorkers,
+				checkDocker,
+				pullImage,
+			),
+		}
+	}()
+
+	for range maxWorkers {
+		<-started
+	}
+
+	// Both workers are now blocked inside pullImage. If the worker
+	// bound is respected, no third pull can start.
+	select {
+	case image := <-started:
+		t.Fatalf(
+			"pull for %q started while %d workers were already active",
+			image,
+			maxWorkers,
+		)
+	default:
+	}
+
+	close(
+		release,
+	)
+
+	got := <-done
+
+	if got.err != nil {
+		t.Fatalf(
+			"prepareExecution() error = %v, want nil",
+			got.err,
+		)
+	}
+
+	startedCount := maxWorkers
+
+	for {
+		select {
+		case <-started:
+			startedCount++
+		default:
+			goto counted
+		}
+	}
+
+counted:
+	if startedCount != len(plan.Actions) {
+		t.Fatalf(
+			"started pulls = %d, want %d",
+			startedCount,
+			len(plan.Actions),
+		)
+	}
+}
+
+func TestPrepareExecutionContextCancelled(
+	t *testing.T,
+) {
+	ctx, cancel := context.WithCancel(
+		context.Background(),
+	)
+	cancel()
+
+	checkCalls := 0
+	pullCalls := 0
+
+	checkDocker := func(
+		ctx context.Context,
+	) error {
+		checkCalls++
+
+		return ctx.Err()
+	}
+
+	pullImage := func(
+		ctx context.Context,
+		image string,
+	) error {
+		pullCalls++
+
+		return nil
+	}
+
+	plan := runner.Plan{
+		Actions: []runner.PlannedAction{
+			{
+				Docker: docker.Command{
+					Image: "example/a:1",
+				},
+			},
+		},
+	}
+
+	err := prepareExecution(
+		ctx,
+		plan,
+		2,
+		checkDocker,
+		pullImage,
+	)
+
+	if !errors.Is(
+		err,
+		context.Canceled,
+	) {
+		t.Fatalf(
+			"prepareExecution() error = %v, want context.Canceled",
+			err,
+		)
+	}
+
+	if pullCalls != 0 {
+		t.Fatalf(
+			"pull calls = %d, want 0",
+			pullCalls,
+		)
+	}
+
+	if checkCalls > 1 {
+		t.Fatalf(
+			"check calls = %d, want at most 1",
+			checkCalls,
+		)
+	}
+}
+
 func TestRunPassesPlanAndMaxWorkersToExecutor(
 	t *testing.T,
 ) {
@@ -916,12 +1486,21 @@ func TestRunReportsDirtyGit(
 	want := "" +
 		"NOTICE: Git repository /repo has uncommitted changes\n" +
 		"   M foo.go\n" +
-		"  ?? bar.go\n" +
-		"Completed: 1 action, 1 succeeded, 0 failed.\n"
+		"  ?? bar.go\n"
+		//
 
-	if harness.stderr.String() != want {
+	if !strings.Contains(harness.stderr.String(), want) {
 		t.Fatalf(
-			"stderr = %q, want %q",
+			"stderr = %q, should contain %q",
+			harness.stderr.String(),
+			want,
+		)
+	}
+
+	want = "Completed: 1 action, 1 succeeded, 0 failed.\n"
+	if !strings.Contains(harness.stderr.String(), want) {
+		t.Fatalf(
+			"stderr = %q, should contain %q",
 			harness.stderr.String(),
 			want,
 		)
@@ -977,12 +1556,19 @@ func TestRunReportsIgnoredActionFiles(
 		"  /repo/foo/bar/.yamr.yaml " +
 		"(triggered by /repo/foo/.yamr.yaml)\n" +
 		"  /repo/foo/baz/.yamr.yaml " +
-		"(triggered by /repo/foo/.yamr.yaml)\n" +
-		"Completed: 1 action, 1 succeeded, 0 failed.\n"
+		"(triggered by /repo/foo/.yamr.yaml)\n"
 
-	if harness.stderr.String() != want {
+	if !strings.Contains(harness.stderr.String(), want) {
 		t.Fatalf(
-			"stderr = %q, want %q",
+			"stderr = %q, should contain %q",
+			harness.stderr.String(),
+			want,
+		)
+	}
+	want = "Completed: 1 action, 1 succeeded, 0 failed.\n"
+	if !strings.Contains(harness.stderr.String(), want) {
+		t.Fatalf(
+			"stderr = %q, should contain %q",
 			harness.stderr.String(),
 			want,
 		)
@@ -1024,6 +1610,13 @@ func TestRunNoActionsReportsAndDoesNotPrompt(
 	if result.Declined {
 		t.Error(
 			"Declined = true, want false",
+		)
+	}
+
+	if harness.prepareCalls != 0 {
+		t.Fatalf(
+			"prepare calls = %d, want 0",
+			harness.prepareCalls,
 		)
 	}
 
@@ -1102,11 +1695,12 @@ func TestRunReportsSummaryAfterSuccess(
 	}
 
 	want := "" +
+		"Docker images ready.\n" +
 		"Completed: 3 actions, 3 succeeded, 0 failed.\n"
 
-	if harness.stderr.String() != want {
+	if !strings.Contains(harness.stderr.String(), want) {
 		t.Fatalf(
-			"stderr = %q, want %q",
+			"stderr = %q, should contain %q",
 			harness.stderr.String(),
 			want,
 		)
@@ -1178,12 +1772,10 @@ func TestRunReportsSummaryAfterFailure(
 		)
 	}
 
-	want := "" +
-		"Completed: 3 actions, 2 succeeded, 1 failed.\n"
-
-	if harness.stderr.String() != want {
+	want := "Completed: 3 actions, 2 succeeded, 1 failed.\n"
+	if !strings.Contains(harness.stderr.String(), want) {
 		t.Fatalf(
-			"stderr = %q, want %q",
+			"stderr = %q, should contain %q",
 			harness.stderr.String(),
 			want,
 		)
@@ -1191,7 +1783,7 @@ func TestRunReportsSummaryAfterFailure(
 }
 
 type runHarness struct {
-	runner applicationRunner
+	runner   applicationRunner
 	reporter report.Reporter
 
 	buildResult app.BuildResult
@@ -1199,6 +1791,12 @@ type runHarness struct {
 	buildCalls  int
 
 	gotBuildOptions app.BuildOptions
+
+	prepareErr   error
+	prepareCalls int
+
+	gotPreparePlan       runner.Plan
+	gotPrepareMaxWorkers int
 
 	executeResult runner.PlanResult
 	executeErr    error
@@ -1230,6 +1828,18 @@ func newRunHarness() *runHarness {
 				harness.buildErr
 		},
 
+		prepare: func(
+			ctx context.Context,
+			plan runner.Plan,
+			maxWorkers int,
+		) error {
+			harness.prepareCalls++
+			harness.gotPreparePlan = plan
+			harness.gotPrepareMaxWorkers = maxWorkers
+
+			return harness.prepareErr
+		},
+
 		execute: func(
 			ctx context.Context,
 			plan runner.Plan,
@@ -1253,7 +1863,7 @@ func (h *runHarness) options(
 	stdin string,
 ) Options {
 	return Options{
-		CLI: cli.Options{},
+		CLI:     cli.Options{},
 		RunDir:  "/repo",
 		Stdin:   strings.NewReader(stdin),
 		Stdout:  &h.stdout,
@@ -1295,7 +1905,7 @@ func buildResultWithIgnoredAction() app.BuildResult {
 		},
 		IgnoredActionFiles: []discover.IgnoredActionFile{
 			{
-				ActionFile: "/repo/action/descendant/.yamr.yaml",
+				ActionFile:  "/repo/action/descendant/.yamr.yaml",
 				TriggeredBy: "/repo/action/.yamr.yaml",
 			},
 		},

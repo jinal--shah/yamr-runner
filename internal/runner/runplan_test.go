@@ -53,7 +53,7 @@ func TestRunPlanRespectsWorkerLimit(
 
 			return docker.Result{
 				ExitCode: 0,
-				Ran: true,
+				Ran:      true,
 			}, nil
 		},
 		events: nil,
@@ -147,7 +147,7 @@ func TestRunPlanContinuesAfterActionFailure(
 			if command.Image == "image-2" {
 				return docker.Result{
 						ExitCode: 42,
-						Ran: true,
+						Ran:      true,
 					},
 					fmt.Errorf(
 						"docker exited with status 42",
@@ -156,7 +156,7 @@ func TestRunPlanContinuesAfterActionFailure(
 
 			return docker.Result{
 				ExitCode: 0,
-				Ran: true,
+				Ran:      true,
 			}, nil
 		},
 		events: nil,
@@ -446,7 +446,6 @@ func TestRunPlanResultContainsEveryPlannedAction(
 	t *testing.T,
 ) {
 
-
 	plan := testExecutionPlan(
 		t,
 		3,
@@ -510,12 +509,15 @@ func TestRunPlanResultContainsEveryPlannedAction(
 func TestRunPlanCancellationRecordsRanAndNotRunActions(
 	t *testing.T,
 ) {
+
 	plan := testExecutionPlan(
 		t,
 		3,
 	)
 	started := make(chan struct{})
 	release := make(chan struct{})
+
+	var startedOnce sync.Once
 
 	execution := NewExecution(nil)
 	execution.runDocker = func(
@@ -524,7 +526,11 @@ func TestRunPlanCancellationRecordsRanAndNotRunActions(
 		stdout io.Writer,
 		stderr io.Writer,
 	) (docker.Result, error) {
-		close(started)
+		startedOnce.Do(
+			func() {
+				close(started)
+			},
+		)
 
 		<-release
 
@@ -991,4 +997,3 @@ func testExecutionPlan(
 
 	return plan
 }
-

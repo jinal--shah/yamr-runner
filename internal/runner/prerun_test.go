@@ -1329,7 +1329,7 @@ func TestRunPreRunMoveThenMkdir(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	old_txt := filepath.Join( generated, "old.txt")
+	old_txt := filepath.Join(generated, "old.txt")
 	if err := os.WriteFile(
 		old_txt,
 		[]byte("old"),
@@ -1568,7 +1568,6 @@ func TestRunPreRunEmitsMvToTmpEvent(
 		)
 	}
 }
-
 
 func TestRunPreRunMissingMvToTmpDoesNotEmitEvent(
 	t *testing.T,

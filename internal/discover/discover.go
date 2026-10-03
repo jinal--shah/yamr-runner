@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
@@ -57,6 +58,42 @@ func Find(
 		)
 	}
 
+	if options.RepoRoot == "" {
+		return Result{}, fmt.Errorf(
+			"repository root must not be empty",
+		)
+	}
+
+	repoRoot, err := canonicalPath(
+		options.RepoRoot,
+	)
+	if err != nil {
+		return Result{}, fmt.Errorf(
+			"canonicalising repository root %q: %w",
+			options.RepoRoot,
+			err,
+		)
+	}
+
+	withinRepo, err := pathWithin(
+		repoRoot,
+		runDir,
+	)
+	if err != nil {
+		return Result{}, fmt.Errorf(
+			"checking run directory against repository root: %w",
+			err,
+		)
+	}
+
+	if !withinRepo {
+		return Result{}, fmt.Errorf(
+			"run directory %q is outside repository root %q",
+			runDir,
+			repoRoot,
+		)
+	}
+
 	if options.ActionFile == "" {
 		return Result{}, fmt.Errorf(
 			"action file must not be empty",
@@ -89,7 +126,7 @@ func Find(
 	if err := tokens.ResolveDocument(
 		defaults,
 		tokens.Context{
-			RepoRoot:       options.RepoRoot,
+			RepoRoot:       repoRoot,
 			RunDir:         runDir,
 			YamrSourcesDir: options.YamrSourcesDir,
 		},
@@ -104,16 +141,38 @@ func Find(
 	state := finder{
 		options: Options{
 			RunDir:         runDir,
-			RepoRoot:       options.RepoRoot,
+			RepoRoot:       repoRoot,
 			YamrSourcesDir: options.YamrSourcesDir,
 			ActionFile:     options.ActionFile,
 			Defaults:       defaults,
 		},
 	}
 
+	//
+	// Configuration inheritance starts at the repository root,
+	// not the run directory.
+	//
+	// Action files above RunDir contribute configuration but are
+	// never actionable for this invocation. Their trigger values
+	// are therefore validated but do not terminate discovery.
+	//
+	inherited, err := state.inheritedConfig(
+		defaults,
+	)
+	if err != nil {
+		return Result{}, fmt.Errorf(
+			"building inherited configuration: %w",
+			err,
+		)
+	}
+
+	//
+	// RunDir is the actionable discovery boundary. From this
+	// point down, trigger-yamr-runner has its normal semantics.
+	//
 	result, err := state.walk(
 		runDir,
-		defaults,
+		inherited,
 	)
 	if err != nil {
 		return Result{}, err
@@ -158,102 +217,171 @@ type walkResult struct {
 	ignoredActionFiles []IgnoredActionFile
 }
 
-func (f *finder) walk(
+// inheritedConfig builds the configuration inherited by RunDir.
+//
+// It processes action files from RepoRoot through the parent of
+// RunDir, in that order.
+//
+// Trigger values in these files are validated but deliberately
+// ignored: directories above RunDir are outside the actionable
+// discovery boundary for this invocation.
+func (f *finder) inheritedConfig(
+	defaults *yaml.Node,
+) (*yaml.Node, error) {
+	dirs, err := ancestorDirs(
+		f.options.RepoRoot,
+		f.options.RunDir,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	merged := defaults
+
+	for _, dir := range dirs {
+		mergedConfig, _, _, err := f.mergeActionFile(
+			dir,
+			merged,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		merged = mergedConfig
+	}
+
+	return merged, nil
+}
+
+// mergeActionFile merges the action file in dir, if one exists,
+// over inherited.
+//
+// The returned trigger value describes the action file itself.
+// The caller decides whether that trigger is actionable.
+//
+// This distinction allows ancestor action files above RunDir to
+// contribute inherited configuration without becoming candidates
+// or terminating discovery.
+func (f *finder) mergeActionFile(
 	dir string,
 	inherited *yaml.Node,
-) (walkResult, error) {
-	merged := inherited
-
+) (
+	merged *yaml.Node,
+	triggered bool,
+	exists bool,
+	err error,
+) {
 	actionFile := filepath.Join(
 		dir,
 		f.options.ActionFile,
 	)
 
-	triggered := false
-
-	info, err := os.Stat(actionFile)
+	info, err := os.Stat(
+		actionFile,
+	)
 
 	switch {
 	case err == nil:
 		if info.IsDir() {
-			return walkResult{}, fmt.Errorf(
+			return nil, false, false, fmt.Errorf(
 				"action file %q is a directory",
 				actionFile,
 			)
 		}
 
-		document, err := config.Load(
-			actionFile,
-		)
-		if err != nil {
-			return walkResult{}, fmt.Errorf(
-				"load action file %q: %w",
-				actionFile,
-				err,
-			)
-		}
-
-		triggered, err = triggerYamrRunner(
-			document,
-		)
-		if err != nil {
-			return walkResult{}, fmt.Errorf(
-				"read trigger from action file %q: %w",
-				actionFile,
-				err,
-			)
-		}
-
-		runnerConfig, err := config.RunnerConfig(
-			document,
-		)
-		if err != nil {
-			return walkResult{}, fmt.Errorf(
-				"extract yamr-runner from action file %q: %w",
-				actionFile,
-				err,
-			)
-		}
-
-		err = tokens.ResolveDocument(
-			runnerConfig,
-			tokens.Context{
-				ThisDir:        dir,
-				RepoRoot:       f.options.RepoRoot,
-				RunDir:         f.options.RunDir,
-				YamrSourcesDir: f.options.YamrSourcesDir,
-			},
-			tokens.Immediate,
-		)
-		if err != nil {
-			return walkResult{}, fmt.Errorf(
-				"resolving immediate tokens in action file %q: %w",
-				actionFile,
-				err,
-			)
-		}
-
-		merged, err = config.Merge(
-			inherited,
-			runnerConfig,
-		)
-		if err != nil {
-			return walkResult{}, fmt.Errorf(
-				"merging action file %q: %w",
-				actionFile,
-				err,
-			)
-		}
-
 	case os.IsNotExist(err):
+		return inherited, false, false, nil
 
 	default:
-		return walkResult{}, fmt.Errorf(
+		return nil, false, false, fmt.Errorf(
 			"checking action file %q: %w",
 			actionFile,
 			err,
 		)
 	}
+
+	document, err := config.Load(
+		actionFile,
+	)
+	if err != nil {
+		return nil, false, true, fmt.Errorf(
+			"load action file %q: %w",
+			actionFile,
+			err,
+		)
+	}
+
+	triggered, err = triggerYamrRunner(
+		document,
+	)
+	if err != nil {
+		return nil, false, true, fmt.Errorf(
+			"read trigger from action file %q: %w",
+			actionFile,
+			err,
+		)
+	}
+
+	runnerConfig, err := config.RunnerConfig(
+		document,
+	)
+	if err != nil {
+		return nil, false, true, fmt.Errorf(
+			"extract yamr-runner from action file %q: %w",
+			actionFile,
+			err,
+		)
+	}
+
+	err = tokens.ResolveDocument(
+		runnerConfig,
+		tokens.Context{
+			ThisDir:        dir,
+			RepoRoot:       f.options.RepoRoot,
+			RunDir:         f.options.RunDir,
+			YamrSourcesDir: f.options.YamrSourcesDir,
+		},
+		tokens.Immediate,
+	)
+	if err != nil {
+		return nil, false, true, fmt.Errorf(
+			"resolving immediate tokens in action file %q: %w",
+			actionFile,
+			err,
+		)
+	}
+
+	merged, err = config.Merge(
+		inherited,
+		runnerConfig,
+	)
+	if err != nil {
+		return nil, false, true, fmt.Errorf(
+			"merging action file %q: %w",
+			actionFile,
+			err,
+		)
+	}
+
+	return merged, triggered, true, nil
+}
+
+func (f *finder) walk(
+	dir string,
+	inherited *yaml.Node,
+) (walkResult, error) {
+	merged, triggered, _, err := f.mergeActionFile(
+		dir,
+		inherited,
+	)
+	if err != nil {
+		return walkResult{}, err
+	}
+
+	actionFile := filepath.Join(
+		dir,
+		f.options.ActionFile,
+	)
 
 	//
 	// A trigger terminates normal configuration discovery on
@@ -512,6 +640,111 @@ func directories(
 	sort.Strings(result)
 
 	return result, nil
+}
+
+// ancestorDirs returns the directories which participate only in
+// configuration inheritance.
+//
+// RepoRoot is included and RunDir itself is excluded.
+//
+// For:
+//
+//	RepoRoot = /repo
+//	RunDir   = /repo/a/b/c
+//
+// this returns:
+//
+//	/repo
+//	/repo/a
+//	/repo/a/b
+func ancestorDirs(
+	repoRoot string,
+	runDir string,
+) ([]string, error) {
+	if repoRoot == runDir {
+		return nil, nil
+	}
+
+	withinRepo, err := pathWithin(
+		repoRoot,
+		runDir,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if !withinRepo {
+		return nil, fmt.Errorf(
+			"run directory %q is outside repository root %q",
+			runDir,
+			repoRoot,
+		)
+	}
+
+	var reversed []string
+
+	current := filepath.Dir(
+		runDir,
+	)
+
+	for {
+		reversed = append(
+			reversed,
+			current,
+		)
+
+		if current == repoRoot {
+			break
+		}
+
+		parent := filepath.Dir(
+			current,
+		)
+
+		if parent == current {
+			return nil, fmt.Errorf(
+				"repository root %q is not an ancestor of run directory %q",
+				repoRoot,
+				runDir,
+			)
+		}
+
+		current = parent
+	}
+
+	result := make(
+		[]string,
+		len(reversed),
+	)
+
+	for i := range reversed {
+		result[len(reversed)-1-i] = reversed[i]
+	}
+
+	return result, nil
+}
+
+func pathWithin(
+	parent string,
+	child string,
+) (bool, error) {
+	relative, err := filepath.Rel(
+		parent,
+		child,
+	)
+	if err != nil {
+		return false, err
+	}
+
+	if relative == "." {
+		return true, nil
+	}
+
+	return relative != ".." &&
+		!strings.HasPrefix(
+			relative,
+			".."+string(filepath.Separator),
+		), nil
 }
 
 func canonicalPath(

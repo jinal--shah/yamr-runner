@@ -1415,6 +1415,371 @@ yamr-runner:
 	}
 }
 
+// BOUNDARY TESTING - even if we run cli from a subdir
+// we should still examine ancestor dirs for any config to merge
+// BUT NOT consider any such ancestor actionable.
+
+func TestFindInheritsConfigurationAboveRunDir(
+	t *testing.T,
+) {
+	root := newTree(t)
+
+	parentDir := filepath.Join(
+		root,
+		"parent",
+	)
+	runDir := filepath.Join(
+		parentDir,
+		"run",
+	)
+	actionDir := filepath.Join(
+		runDir,
+		"child",
+	)
+
+	writeAction(
+		t,
+		root,
+		`
+yamr-runner:
+  env:
+    FROM_ROOT: root
+    OVERRIDE: root
+`,
+	)
+
+	writeAction(
+		t,
+		parentDir,
+		`
+yamr-runner:
+  env:
+    FROM_PARENT: parent
+    OVERRIDE: parent
+`,
+	)
+
+	writeAction(
+		t,
+		runDir,
+		`
+yamr-runner:
+  env:
+    FROM_RUN_DIR: run
+    OVERRIDE: run
+`,
+	)
+
+	writeAction(
+		t,
+		actionDir,
+		`
+trigger-yamr-runner: true
+
+yamr-runner:
+  env:
+    FROM_ACTION: action
+    OVERRIDE: action
+`,
+	)
+
+	result, err := Find(
+		Options{
+			RunDir:         runDir,
+			RepoRoot:       root,
+			YamrSourcesDir: root,
+			ActionFile:     ".yamr.yaml",
+			Defaults:       emptyDefaults(t),
+		},
+	)
+	if err != nil {
+		t.Fatalf(
+			"Find() error = %v",
+			err,
+		)
+	}
+
+	assertCandidateDirs(
+		t,
+		result.Candidates,
+		actionDir,
+	)
+
+	env := nestedMapping(
+		t,
+		result.Candidates[0].Config,
+		"yamr-runner",
+		"env",
+	)
+
+	assertMappingScalar(
+		t,
+		env,
+		"FROM_ROOT",
+		"root",
+	)
+
+	assertMappingScalar(
+		t,
+		env,
+		"FROM_PARENT",
+		"parent",
+	)
+
+	assertMappingScalar(
+		t,
+		env,
+		"FROM_RUN_DIR",
+		"run",
+	)
+
+	assertMappingScalar(
+		t,
+		env,
+		"FROM_ACTION",
+		"action",
+	)
+
+	assertMappingScalar(
+		t,
+		env,
+		"OVERRIDE",
+		"action",
+	)
+}
+
+func TestFindAncestorTriggerDoesNotBecomeActionable(
+	t *testing.T,
+) {
+	root := newTree(t)
+
+	runDir := filepath.Join(
+		root,
+		"parent",
+		"run",
+	)
+	actionDir := filepath.Join(
+		runDir,
+		"child",
+	)
+
+	writeAction(
+		t,
+		root,
+		`
+trigger-yamr-runner: true
+
+yamr-runner:
+  env:
+    FROM_ANCESTOR: inherited
+`,
+	)
+
+	writeAction(
+		t,
+		actionDir,
+		`
+trigger-yamr-runner: true
+
+yamr-runner:
+  env:
+    FROM_CHILD: child
+`,
+	)
+
+	result, err := Find(
+		Options{
+			RunDir:         runDir,
+			RepoRoot:       root,
+			YamrSourcesDir: root,
+			ActionFile:     ".yamr.yaml",
+			Defaults:       emptyDefaults(t),
+		},
+	)
+	if err != nil {
+		t.Fatalf(
+			"Find() error = %v",
+			err,
+		)
+	}
+
+	assertCandidateDirs(
+		t,
+		result.Candidates,
+		actionDir,
+	)
+
+	env := nestedMapping(
+		t,
+		result.Candidates[0].Config,
+		"yamr-runner",
+		"env",
+	)
+
+	assertMappingScalar(
+		t,
+		env,
+		"FROM_ANCESTOR",
+		"inherited",
+	)
+
+	assertMappingScalar(
+		t,
+		env,
+		"FROM_CHILD",
+		"child",
+	)
+
+	if len(result.IgnoredActionFiles) != 0 {
+		t.Fatalf(
+			"IgnoredActionFiles = %#v, want none",
+			result.IgnoredActionFiles,
+		)
+	}
+}
+
+func TestFindResolvesThisDirForAncestorConfiguration(
+	t *testing.T,
+) {
+	root := newTree(t)
+
+	parentDir := filepath.Join(
+		root,
+		"parent",
+	)
+	runDir := filepath.Join(
+		parentDir,
+		"run",
+	)
+	actionDir := filepath.Join(
+		runDir,
+		"child",
+	)
+
+	writeAction(
+		t,
+		root,
+		`
+yamr-runner:
+  env:
+    ROOT_PATH: /$this_dir$/root-resource
+`,
+	)
+
+	writeAction(
+		t,
+		parentDir,
+		`
+yamr-runner:
+  env:
+    PARENT_PATH: /$this_dir$/parent-resource
+`,
+	)
+
+	writeAction(
+		t,
+		actionDir,
+		`
+trigger-yamr-runner: true
+
+yamr-runner:
+  env:
+    ACTION_PATH: /$this_dir$/action-resource
+`,
+	)
+
+	result, err := Find(
+		Options{
+			RunDir:         runDir,
+			RepoRoot:       root,
+			YamrSourcesDir: root,
+			ActionFile:     ".yamr.yaml",
+			Defaults:       emptyDefaults(t),
+		},
+	)
+	if err != nil {
+		t.Fatalf(
+			"Find() error = %v",
+			err,
+		)
+	}
+
+	assertCandidateDirs(
+		t,
+		result.Candidates,
+		actionDir,
+	)
+
+	env := nestedMapping(
+		t,
+		result.Candidates[0].Config,
+		"yamr-runner",
+		"env",
+	)
+
+	assertMappingScalar(
+		t,
+		env,
+		"ROOT_PATH",
+		filepath.Join(
+			root,
+			"root-resource",
+		),
+	)
+
+	assertMappingScalar(
+		t,
+		env,
+		"PARENT_PATH",
+		filepath.Join(
+			parentDir,
+			"parent-resource",
+		),
+	)
+
+	assertMappingScalar(
+		t,
+		env,
+		"ACTION_PATH",
+		filepath.Join(
+			actionDir,
+			"action-resource",
+		),
+	)
+}
+
+func TestFindRejectsRunDirOutsideRepoRoot(
+	t *testing.T,
+) {
+	repoRoot := newTree(t)
+	runDir := newTree(t)
+
+	_, err := Find(
+		Options{
+			RunDir:         runDir,
+			RepoRoot:       repoRoot,
+			YamrSourcesDir: repoRoot,
+			ActionFile:     ".yamr.yaml",
+			Defaults:       emptyDefaults(t),
+		},
+	)
+	if err == nil {
+		t.Fatal(
+			"Find() error = nil, want error",
+		)
+	}
+
+	if !strings.Contains(
+		err.Error(),
+		"is outside repository root",
+	) {
+		t.Fatalf(
+			"Find() error = %q, want outside repository root error",
+			err,
+		)
+	}
+}
+
 func writeTestFile(
 	t *testing.T,
 	path string,
@@ -1677,3 +2042,4 @@ func assertMappingScalar(
 
 	t.Fatalf("mapping key %q not found", key)
 }
+

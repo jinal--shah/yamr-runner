@@ -86,7 +86,6 @@ Assuming the user's uid:gid is 501:501, it will run pre_run steps equivalent to:
     mkdir -p /home/foo/subdir/.generated
 
     docker run -t --rm
-        --entrypoint yamr # yamr-runner-defaults.yaml
         -u 501:501        # yamr-runner-defaults.yaml $uid_me$:$gid_me$
         -e ENTITY=foo # yamr-runner-defaults.yaml yamr-runner.env.ENTITY
         -e STACK=prod # /repo/prod/.yamr.yaml yamr-runner.env.STACK

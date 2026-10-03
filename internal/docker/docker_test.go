@@ -128,10 +128,6 @@ func TestCompileEntrypointMustContainExactlyOneValue(
 		entrypoint string
 	}{
 		{
-			name:       "empty",
-			entrypoint: "[]",
-		},
-		{
 			name: "multiple",
 			entrypoint: `
               - yamr
@@ -159,7 +155,7 @@ yamr-runner:
 				)
 			}
 
-			want := "entrypoint must contain exactly one string"
+			want := "docker.entrypoint should have just the command for docker run --entrypoint"
 
 			if !strings.Contains(err.Error(), want) {
 				t.Fatalf(
@@ -219,7 +215,7 @@ yamr-runner:
 	)
 }
 
-func TestCompileRequiresEntrypoint(t *testing.T) {
+func TestCompileEntrypointIsOptional(t *testing.T) {
 	a := actionFromYAML(t, `
 yamr-runner:
   action:
@@ -231,15 +227,9 @@ yamr-runner:
 `)
 
 	_, err := Compile(a)
-	if err == nil {
-		t.Fatal("Compile() succeeded, want error")
+	if err != nil {
+		t.Fatalf("Compile() failed, want success: %q", err)
 	}
-
-	assertErrorContains(
-		t,
-		err,
-		"yamr-runner.action.run.docker.entrypoint is required",
-	)
 }
 
 func TestCompileRequiresCmdSources(t *testing.T) {

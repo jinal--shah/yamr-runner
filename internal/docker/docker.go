@@ -36,7 +36,7 @@ func Compile(a *action.Action) (Command, error) {
 		return Command{}, actionError(a, err)
 	}
 
-	entrypointValues, err := requiredStringSequence(
+	entrypointValues, err := optionalStringSequence(
 		docker,
 		"entrypoint",
 		"yamr-runner.action.run.docker.entrypoint",
@@ -45,14 +45,21 @@ func Compile(a *action.Action) (Command, error) {
 		return Command{}, actionError(a, err)
 	}
 
-	if len(entrypointValues) != 1 {
-		return Command{}, actionError(
-			a,
-			fmt.Errorf(
-				"yamr-runner.action.run.docker.entrypoint "+
-					"must contain exactly one string",
-			),
-		)
+	entrypointCmd := ""
+	if len(entrypointValues) > 0 {
+		if len(entrypointValues) == 1 {
+			entrypointCmd = entrypointValues[0]
+		} else {
+			return Command{}, actionError(
+				a,
+				fmt.Errorf(
+					"docker.entrypoint should have just the command for "+
+						"docker run --entrypoint\n"+
+						"- put any parameters to the command in "+
+						"docker.cmd_opts",
+				),
+			)
+		}
 	}
 
 	cmdOpts, err := optionalStringSequence(
@@ -77,7 +84,7 @@ func Compile(a *action.Action) (Command, error) {
 		return Command{}, actionError(
 			a,
 			fmt.Errorf(
-				"yamr-runner.action.run.docker.cmd_sources "+
+				"cmd_sources "+
 					"must contain at least one source",
 			),
 		)
@@ -112,7 +119,7 @@ func Compile(a *action.Action) (Command, error) {
 
 	return Command{
 		Image:      image,
-		Entrypoint: entrypointValues[0],
+		Entrypoint: entrypointCmd,
 		CmdOpts:    cmdOpts,
 		CmdSources: cmdSources,
 		UserGroup:  userGroup,

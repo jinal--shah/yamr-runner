@@ -80,6 +80,9 @@ Example:
             - run
 
           # yamr-runner.action.run.docker.cmd_sources:
+		  # MUST resolve for the triggering action_file, so you can put
+		  # the common case in this file, or in any action file
+		  # the triggering action file inherits.
           # If using source-label, set to:
           #     $yamr_sources_from_label$
           # If using sources, set to:

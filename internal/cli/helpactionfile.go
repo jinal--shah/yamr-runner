@@ -111,6 +111,7 @@ Kitchen-sink example:
             - run
 
           # yamr-runner.action.run.docker.cmd_sources:
+	      # REQUIRED: action file must set this or inherit it.
           # If using source-label, set to:
           #     $yamr_sources_from_label$
           # If using sources, set to:

@@ -5,6 +5,9 @@ import (
 	"strings"
 )
 
+// always do docker run with --rm
+var dockerRunDefaultParams = []string{"run", "--rm"}
+
 type Command struct {
 	Image      string
 	Entrypoint string
@@ -20,11 +23,8 @@ type Command struct {
 //
 // The returned slice does not contain "docker" itself.
 func (c Command) Args() []string {
-	args := []string{
-		"run",
-		"--rm",
-	}
-
+	var args []string
+	args = append(args, dockerRunDefaultParams...)
 	if c.UserGroup != "" {
 		args = append(
 			args,
@@ -33,11 +33,13 @@ func (c Command) Args() []string {
 		)
 	}
 
-	args = append(
-		args,
-		"--entrypoint",
-		c.Entrypoint,
-	)
+	if c.Entrypoint != "" {
+		args = append(
+			args,
+			"--entrypoint",
+			c.Entrypoint,
+		)
+	}
 
 	if c.WorkDir != "" {
 		args = append(

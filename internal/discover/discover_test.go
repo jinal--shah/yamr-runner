@@ -2042,4 +2042,3 @@ func assertMappingScalar(
 
 	t.Fatalf("mapping key %q not found", key)
 }
-

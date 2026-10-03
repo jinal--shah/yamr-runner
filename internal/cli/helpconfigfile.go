@@ -6,16 +6,21 @@ The configuration file supplies defaults which may be overridden by
 each action file in turn along a directory path, until and including
 the action file that triggers a container action.
 
+Only the yamr-runner map can be overridden in action files.
+i.e. other top level keys in the config file aren't supported in action files.
+
 Example:
 
   # yamr-sources-dir:
   # Optional when --yamr-sources-dir or YAMR_SOURCES_DIR is supplied.
   # Directory containing YAMR source files.
+  # The only token in this value is $this_dir$ (the dir containing the config file)
   yamr-sources-dir: /path/to/yamr-sources
 
   # yamr-source-labels:
   # Optional when --yamr-source-labels or YAMR_SOURCE_LABELS is supplied.
   # File containing source-label mappings.
+  # The only token in this value is $this_dir$ (the dir containing the config file)
   yamr-source-labels: /path/to/yamr-source-labels.yaml
 
   # yamr-runner:

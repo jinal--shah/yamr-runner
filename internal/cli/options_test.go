@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestParseUsesConfigValues(
@@ -1085,6 +1087,225 @@ max-workers: 8
 	}
 }
 
+// using $this_dir$ in top level keys in config file
+func TestParseResolvesThisDirInTopLevelConfigPaths(
+	t *testing.T,
+) {
+	configDir := t.TempDir()
+	configPath := filepath.Join(
+		configDir,
+		"yamr-runner.yaml",
+	)
+
+	// dummy file rather than mock the methods that want a real file
+	// - we'll actually just return the yaml we want with loadConfig
+	// anonymous func below.
+	if err := os.WriteFile(
+		configPath,
+		[]byte{},
+		0o600,
+	); err != nil {
+		t.Fatalf(
+			"os.WriteFile(%q) error = %v",
+			configPath,
+			err,
+		)
+	}
+
+	loadConfig := func(
+		path string,
+	) (*yaml.Node, error) {
+		if path != configPath {
+			t.Fatalf(
+				"loadConfig() path = %q, want %q",
+				path,
+				configPath,
+			)
+		}
+
+		return parseYAML(
+			t,
+			`
+yamr-sources-dir: /$this_dir$/sources
+yamr-source-labels: /$this_dir$/labels.yaml
+`,
+		), nil
+	}
+
+	options, err := parse(
+		[]string{
+			"--config",
+			configPath,
+		},
+		nil,
+		loadConfig,
+	)
+	if err != nil {
+		t.Fatalf(
+			"parse() error = %v",
+			err,
+		)
+	}
+
+	configDir = filepath.Dir(
+		canonicalTestPath(
+			t,
+			configPath,
+		),
+	)
+
+	wantSourcesDir := filepath.Join(
+		configDir,
+		"sources",
+	)
+
+	if options.YamrSourcesDir != wantSourcesDir {
+		t.Fatalf(
+			"YamrSourcesDir = %q, want %q",
+			options.YamrSourcesDir,
+			wantSourcesDir,
+		)
+	}
+
+	wantSourceLabels := filepath.Join(
+		configDir,
+		"labels.yaml",
+	)
+
+	if options.YamrSourceLabels != wantSourceLabels {
+		t.Fatalf(
+			"YamrSourceLabels = %q, want %q",
+			options.YamrSourceLabels,
+			wantSourceLabels,
+		)
+	}
+}
+
+func TestParseRejectsUnavailableTokenInTopLevelConfigPath(
+	t *testing.T,
+) {
+	configDir := t.TempDir()
+	configPath := filepath.Join(
+		configDir,
+		"yamr-runner.yaml",
+	)
+
+	// dummy file rather than mock the methods that want a real file
+	// - we'll actually just return the yaml we want with loadConfig
+	// anonymous func below.
+	if err := os.WriteFile(
+		configPath,
+		[]byte{},
+		0o600,
+	); err != nil {
+		t.Fatalf(
+			"os.WriteFile(%q) error = %v",
+			configPath,
+			err,
+		)
+	}
+
+	loadConfig := func(
+		path string,
+	) (*yaml.Node, error) {
+		return parseYAML(
+			t,
+			`
+yamr-sources-dir: /$repo_root$/sources
+yamr-source-labels: /labels.yaml
+`,
+		), nil
+	}
+
+	_, err := parse(
+		[]string{
+			"--config",
+			configPath,
+		},
+		nil,
+		loadConfig,
+	)
+	if err == nil {
+		t.Fatal(
+			"parse() error = nil, want error",
+		)
+	}
+
+	if !strings.Contains(
+		err.Error(),
+		"token $repo_root$ is not available in top-level runner configuration",
+	) {
+		t.Fatalf(
+			"parse() error = %q, want unavailable token error",
+			err,
+		)
+	}
+}
+
+func TestParseDoesNotResolveTopLevelConfigTokenWhenCLIOverridesIt(
+	t *testing.T,
+) {
+	configDir := t.TempDir()
+	configPath := filepath.Join(
+		configDir,
+		"yamr-runner.yaml",
+	)
+
+	// dummy file rather than mock the methods that want a real file
+	// - we'll actually just return the yaml we want with loadConfig
+	// anonymous func below.
+	if err := os.WriteFile(
+		configPath,
+		[]byte{},
+		0o600,
+	); err != nil {
+		t.Fatalf(
+			"os.WriteFile(%q) error = %v",
+			configPath,
+			err,
+		)
+	}
+
+	loadConfig := func(
+		path string,
+	) (*yaml.Node, error) {
+		return parseYAML(
+			t,
+			`
+yamr-sources-dir: /$repo_root$/should-not-be-resolved
+yamr-source-labels: /labels.yaml
+`,
+		), nil
+	}
+
+	wantSourcesDir := "/cli/sources"
+
+	options, err := parse(
+		[]string{
+			"--config",
+			configPath,
+			"--yamr-sources-dir",
+			wantSourcesDir,
+		},
+		nil,
+		loadConfig,
+	)
+	if err != nil {
+		t.Fatalf(
+			"parse() error = %v",
+			err,
+		)
+	}
+
+	if options.YamrSourcesDir != wantSourcesDir {
+		t.Fatalf(
+			"YamrSourcesDir = %q, want %q",
+			options.YamrSourcesDir,
+			wantSourcesDir,
+		)
+	}
+}
+
 func writeRunnerConfig(
 	t *testing.T,
 	content string,
@@ -1105,4 +1326,65 @@ func writeRunnerConfig(
 	}
 
 	return path
+}
+
+func parseYAML(
+	t *testing.T,
+	value string,
+) *yaml.Node {
+	t.Helper()
+
+	var document yaml.Node
+
+	if err := yaml.Unmarshal(
+		[]byte(value),
+		&document,
+	); err != nil {
+		t.Fatalf(
+			"yaml.Unmarshal() error = %v",
+			err,
+		)
+	}
+
+	return &document
+}
+
+func canonicalTestPath(
+	t *testing.T,
+	path string,
+) string {
+	t.Helper()
+
+	result, err := canonicalPath(
+		path,
+	)
+	if err != nil {
+		t.Fatalf(
+			"canonicalPath(%q) error = %v",
+			path,
+			err,
+		)
+	}
+
+	return result
+}
+
+func canonicalPath(
+	path string,
+) (string, error) {
+	path, err := filepath.Abs(
+		path,
+	)
+	if err != nil {
+		return "", err
+	}
+
+	path, err = filepath.EvalSymlinks(
+		path,
+	)
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Clean(path), nil
 }

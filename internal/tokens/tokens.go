@@ -421,3 +421,46 @@ func ResolveString(
 
 	return node.Value, nil
 }
+
+func ResolveTopLevelConfigString(
+	value string,
+	configFile string,
+) (string, error) {
+	configFile, err := canonicalPath(
+		configFile,
+	)
+	if err != nil {
+		return "", fmt.Errorf(
+			"canonicalising config file: %w",
+			err,
+		)
+	}
+
+	matches := tokenPattern.FindAllStringSubmatch(
+		value,
+		-1,
+	)
+
+	for _, match := range matches {
+		switch match[1] {
+		case "this_dir":
+			// Allowed.
+
+		default:
+			return "", fmt.Errorf(
+				"token $%s$ is not available in top-level runner configuration",
+				match[1],
+			)
+		}
+	}
+
+	return ResolveString(
+		value,
+		Context{
+			ThisDir: filepath.Dir(
+				configFile,
+			),
+		},
+		Immediate,
+	)
+}

@@ -9,6 +9,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 	"jinal--shah/yamr-runner/internal/config"
+	"jinal--shah/yamr-runner/internal/tokens"
 )
 
 const DefaultMaxWorkers = 4
@@ -176,6 +177,7 @@ func parse(
 		"YAMR_SOURCES_DIR",
 		document,
 		"yamr-sources-dir",
+		configPath,
 	)
 	if err != nil {
 		return Options{}, err
@@ -188,6 +190,7 @@ func parse(
 		"YAMR_SOURCE_LABELS",
 		document,
 		"yamr-source-labels",
+		configPath,
 	)
 	if err != nil {
 		return Options{}, err
@@ -303,6 +306,7 @@ func resolveString(
 	envName string,
 	document *yaml.Node,
 	configKey string,
+	configFile string,
 ) (string, error) {
 	if option.set {
 		if option.value == "" {
@@ -334,6 +338,8 @@ func resolveString(
 		return "", err
 	}
 
+	// handle $this_dir$ in top level keys
+	// `yaml-sources-dir` and `yaml-source-labels`
 	if found {
 		if value == "" {
 			return "", fmt.Errorf(
@@ -342,7 +348,26 @@ func resolveString(
 			)
 		}
 
-		return value, nil
+		resolved, err := tokens.ResolveTopLevelConfigString(
+			value,
+			configFile,
+		)
+		if err != nil {
+			return "", fmt.Errorf(
+				"resolve top-level %s: %w",
+				configKey,
+				err,
+			)
+		}
+
+		if resolved == "" {
+			return "", fmt.Errorf(
+				"top-level %s must not be empty",
+				configKey,
+			)
+		}
+
+		return resolved, nil
 	}
 
 	return "", fmt.Errorf(

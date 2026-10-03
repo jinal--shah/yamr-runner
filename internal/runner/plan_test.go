@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"jinal--shah/yamr-run/internal/action"
-	"jinal--shah/yamr-run/internal/docker"
+	"jinal--shah/yamr-runner/internal/action"
+	"jinal--shah/yamr-runner/internal/docker"
 )
 
 func TestBuildPlan(t *testing.T) {

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"jinal--shah/yamr-run/internal/action"
+	"jinal--shah/yamr-runner/internal/action"
 
 	"gopkg.in/yaml.v3"
 )
@@ -808,7 +808,7 @@ func TestExecutionTempRootName(t *testing.T) {
 	name := filepath.Base(root)
 
 	pattern := regexp.MustCompile(
-		`^yamr-run-` +
+		`^yamr-runner-` +
 			`\d{4}-\d{2}-\d{2}_` +
 			`\d{2}_\d{2}_\d{2}_` +
 			`\d{3}-.+$`,
@@ -829,7 +829,7 @@ func TestTemporaryDestinationMirrorsAbsolutePath(
 	tempRoot := filepath.Join(
 		string(filepath.Separator),
 		"tmp",
-		"yamr-run-example",
+		"yamr-runner-example",
 	)
 
 	source := filepath.Join(

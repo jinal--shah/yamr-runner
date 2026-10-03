@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"jinal--shah/yamr-run/internal/cli"
-	"jinal--shah/yamr-run/internal/runner"
+	"jinal--shah/yamr-runner/internal/cli"
+	"jinal--shah/yamr-runner/internal/runner"
 )
 
 func TestBuildCreatesExecutionPlan(

@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"jinal--shah/yamr-run/internal/action"
-	"jinal--shah/yamr-run/internal/docker"
+	"jinal--shah/yamr-runner/internal/action"
+	"jinal--shah/yamr-runner/internal/docker"
 
 	"gopkg.in/yaml.v3"
 )

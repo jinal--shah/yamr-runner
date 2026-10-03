@@ -9,8 +9,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"jinal--shah/yamr-run/internal/discover"
-	"jinal--shah/yamr-run/internal/sources"
+	"jinal--shah/yamr-runner/internal/discover"
+	"jinal--shah/yamr-runner/internal/sources"
 )
 
 func TestCompileRequiresSources(t *testing.T) {

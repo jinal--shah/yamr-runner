@@ -4,13 +4,13 @@ import (
 	"context"
 	"fmt"
 
-	"jinal--shah/yamr-run/internal/action"
-	"jinal--shah/yamr-run/internal/cli"
-	"jinal--shah/yamr-run/internal/config"
-	"jinal--shah/yamr-run/internal/discover"
-	"jinal--shah/yamr-run/internal/git"
-	"jinal--shah/yamr-run/internal/runner"
-	"jinal--shah/yamr-run/internal/sources"
+	"jinal--shah/yamr-runner/internal/action"
+	"jinal--shah/yamr-runner/internal/cli"
+	"jinal--shah/yamr-runner/internal/config"
+	"jinal--shah/yamr-runner/internal/discover"
+	"jinal--shah/yamr-runner/internal/git"
+	"jinal--shah/yamr-runner/internal/runner"
+	"jinal--shah/yamr-runner/internal/sources"
 )
 
 // TODO: allow user to specify action_file in defaults as top level key

@@ -5,9 +5,9 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"jinal--shah/yamr-run/internal/discover"
-	"jinal--shah/yamr-run/internal/sources"
-	"jinal--shah/yamr-run/internal/tokens"
+	"jinal--shah/yamr-runner/internal/discover"
+	"jinal--shah/yamr-runner/internal/sources"
+	"jinal--shah/yamr-runner/internal/tokens"
 )
 
 type Action struct {

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"jinal--shah/yamr-run/internal/action"
+	"jinal--shah/yamr-runner/internal/action"
 
 	"gopkg.in/yaml.v3"
 )

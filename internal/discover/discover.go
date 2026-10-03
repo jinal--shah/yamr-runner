@@ -9,8 +9,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"jinal--shah/yamr-run/internal/config"
-	"jinal--shah/yamr-run/internal/tokens"
+	"jinal--shah/yamr-runner/internal/config"
+	"jinal--shah/yamr-runner/internal/tokens"
 )
 
 type Options struct {

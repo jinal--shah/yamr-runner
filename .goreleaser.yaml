@@ -20,6 +20,9 @@ builds:
 
     ldflags:
       - -s -w
+      - -X jinal--shah/yamr-runner/internal/buildinfo.BuildInfoVersion={{.Version}}
+      - -X jinal--shah/yamr-runner/internal/buildinfo.BuildInfoCommit={{.Commit}}
+      - -X jinal--shah/yamr-runner/internal/buildinfo.BuildInfoDate={{.Date}}
 
 archives:
   - formats: [tar.gz]

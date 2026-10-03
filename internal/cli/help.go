@@ -3,6 +3,8 @@ package cli
 import (
 	"fmt"
 	"strings"
+
+	"jinal--shah/yamr-runner/internal/buildinfo"
 )
 
 type HelpRequest struct {
@@ -56,7 +58,7 @@ func Help(
 ) (string, error) {
 	switch normalizeHelpTopic(topic) {
 	case "":
-		return generalHelp + "Topics\n" + helpTopicList, nil
+		return buildinfo.BuildInfo() + generalHelp + "Topics\n" + helpTopicList, nil
 
 	case HelpTopicExamples:
 		return examplesHelp, nil

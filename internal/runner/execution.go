@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"jinal--shah/yamr-run/internal/docker"
+	"jinal--shah/yamr-runner/internal/docker"
 )
 
 type Execution struct {

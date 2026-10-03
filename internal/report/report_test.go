@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"testing"
 
-	"jinal--shah/yamr-run/internal/action"
-	"jinal--shah/yamr-run/internal/discover"
-	"jinal--shah/yamr-run/internal/docker"
-	"jinal--shah/yamr-run/internal/git"
-	"jinal--shah/yamr-run/internal/runner"
+	"jinal--shah/yamr-runner/internal/action"
+	"jinal--shah/yamr-runner/internal/discover"
+	"jinal--shah/yamr-runner/internal/docker"
+	"jinal--shah/yamr-runner/internal/git"
+	"jinal--shah/yamr-runner/internal/runner"
 )
 
 func TestTextReporterMvToTmp(

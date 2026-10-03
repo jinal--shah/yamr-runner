@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"jinal--shah/yamr-run/internal/action"
-	"jinal--shah/yamr-run/internal/docker"
+	"jinal--shah/yamr-runner/internal/action"
+	"jinal--shah/yamr-runner/internal/docker"
 )
 
 type Plan struct {

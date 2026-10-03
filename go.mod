@@ -1,4 +1,4 @@
-module jinal--shah/yamr-run
+module jinal--shah/yamr-runner
 
 go 1.26
 

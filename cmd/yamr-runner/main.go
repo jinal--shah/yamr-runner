@@ -8,8 +8,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"jinal--shah/yamr-run/internal/apprunner"
-	"jinal--shah/yamr-run/internal/cli"
+	"jinal--shah/yamr-runner/internal/apprunner"
+	"jinal--shah/yamr-runner/internal/cli"
 )
 
 const (

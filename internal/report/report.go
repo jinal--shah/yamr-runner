@@ -7,9 +7,9 @@ import (
 	"io"
 	"sync"
 
-	"jinal--shah/yamr-run/internal/discover"
-	"jinal--shah/yamr-run/internal/git"
-	"jinal--shah/yamr-run/internal/runner"
+	"jinal--shah/yamr-runner/internal/discover"
+	"jinal--shah/yamr-runner/internal/git"
+	"jinal--shah/yamr-runner/internal/runner"
 )
 
 type Reporter interface {

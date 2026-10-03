@@ -9,11 +9,11 @@ import (
 	"strings"
 	"sync"
 
-	"jinal--shah/yamr-run/internal/app"
-	"jinal--shah/yamr-run/internal/cli"
-	"jinal--shah/yamr-run/internal/docker"
-	"jinal--shah/yamr-run/internal/report"
-	"jinal--shah/yamr-run/internal/runner"
+	"jinal--shah/yamr-runner/internal/app"
+	"jinal--shah/yamr-runner/internal/cli"
+	"jinal--shah/yamr-runner/internal/docker"
+	"jinal--shah/yamr-runner/internal/report"
+	"jinal--shah/yamr-runner/internal/runner"
 )
 
 type Options struct {

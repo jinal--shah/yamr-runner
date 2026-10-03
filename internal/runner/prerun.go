@@ -26,7 +26,7 @@ import (
 	"strings"
 	"time"
 
-	"jinal--shah/yamr-run/internal/action"
+	"jinal--shah/yamr-runner/internal/action"
 
 	"gopkg.in/yaml.v3"
 )
@@ -78,7 +78,7 @@ func (e *Execution) TempRoot() (string, error) {
 		now := time.Now()
 
 		prefix := fmt.Sprintf(
-			"yamr-run-%s_%03d-",
+			"yamr-runner-%s_%03d-",
 			now.Format("2006-01-02_15_04_05"),
 			now.Nanosecond()/1_000_000,
 		)
@@ -747,11 +747,11 @@ func (o MoveToTmpOperation) moveToTmp(
 // For example:
 //
 //	source:   /home/user/repo/.generated
-//	tempRoot: /tmp/yamr-run-...
+//	tempRoot: /tmp/yamr-runner-...
 //
 // becomes:
 //
-//	/tmp/yamr-run-.../home/user/repo/.generated
+//	/tmp/yamr-runner-.../home/user/repo/.generated
 func temporaryDestination(
 	tempRoot string,
 	source string,

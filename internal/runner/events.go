@@ -1,6 +1,6 @@
 package runner
 
-import "jinal--shah/yamr-run/internal/docker"
+import "jinal--shah/yamr-runner/internal/docker"
 
 type EventSink interface {
 	MvToTmp(MvToTmpEvent)
